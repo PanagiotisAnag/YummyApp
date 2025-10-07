@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "yummyApp",
+    "slug": "yummyApp",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": { "supportsTablet": true },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#ffffff"
+      }
+    },
+    "web": { "favicon": "./assets/icon.png" }
+  }
+}
+
+

@@ -8,16 +8,23 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "assetBundlePatterns": ["**/*"],
-    "ios": { "supportsTablet": true },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#ffffff"
       }
     },
-    "web": { "favicon": "./assets/icon.png" }
+    "web": {
+      "favicon": "./assets/icon.png"
+    },
+    "plugins": [
+      "expo-font"
+    ]
   }
 }
-
-

@@ -1,43 +1,158 @@
-// App.tsx
 import "react-native-gesture-handler";
-import React, { useEffect, useState, createContext, useContext } from "react";
+import React, { useEffect, useState, createContext, useContext, useRef } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { Ionicons } from "@expo/vector-icons";
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Image,
-  Linking,
-  Platform,
-  Pressable,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+  ActivityIndicator, Alert, FlatList, Image, Linking, Platform, Pressable, ScrollView,
+  StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions,
+  Animated, Easing,
 } from "react-native";
 import { SafeAreaView, SafeAreaProvider } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// Firestore
+// Firebase (ΟΛΑ ΕΔΩ, όχι κάτω από το component!)
 import { db } from "./firebaseConfig";
-import {
-  collection,
-  doc,
-  endAt,
-  getDoc,
-  getDocs,
-  limit,
-  orderBy,
-  query,
-  startAt,
-  where,
-} from "firebase/firestore";
+import { collection, doc, endAt, getDoc, getDocs, limit, orderBy, query, startAt, where } from "firebase/firestore";
+import { onAuthStateChanged, User } from "firebase/auth";
+import { auth } from "./firebaseConfig";
+
+// UI / Screens
+import SignInScreen from "./SignInScreen";
+import ProfileScreen from "./ProfileScreen";
+
+// Icons + fonts
+import { Ionicons } from "@expo/vector-icons";
+import { useFonts } from "expo-font";
+
+
+// ...μέσα στο component App()
+export default function App() {
+  const [lang, setLang] = useState<LangKey>("en");
+  const [onboarded, setOnboarded] = useState<boolean | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+
+  // Φόρτωμα Ionicons (explicit ttf για web)
+  const [iconsReady] = useFonts({
+    Ionicons: require("@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf"),
+  });
+
+  // Fallback: αν κολλήσει η φόρτωση των fonts, άσε το app να προχωρήσει
+  const [iconsTimedOut, setIconsTimedOut] = useState(false);
+  useEffect(() => {
+    const id = setTimeout(() => setIconsTimedOut(true), 4000);
+    return () => clearTimeout(id);
+  }, []);
+
+  // Φόρτωσε γλώσσα + onboarding flag
+  useEffect(() => {
+    (async () => {
+      try {
+        const saved = await AsyncStorage.getItem(STORAGE_KEYS.LANG);
+        if (saved && saved in locales) setLang(saved as LangKey);
+      } catch {}
+      try {
+        const onboardedVal = await AsyncStorage.getItem(STORAGE_KEYS2.ONBOARDED);
+        setOnboarded(onboardedVal === "1");
+      } catch {
+        setOnboarded(false);
+      } finally {
+        // μην αφήσεις το null να κρατάει το spinner για πάντα
+        setOnboarded((v) => (v === null ? false : v));
+      }
+    })();
+  }, []);
+
+  // Συνδρομή στο Firebase Auth
+  useEffect(() => onAuthStateChanged(auth, setUser), []);
+
+  const t = (k: keyof typeof locales["en"]) => locales[lang][k];
+
+  // ΜΗΝ render αν δεν ξέρουμε ακόμα onboarding ή (τα fonts δεν είναι έτοιμα ΚΑΙ δεν έχει λήξει το timeout)
+  if ((Platform.OS === "web" && !iconsReady && !iconsTimedOut) || onboarded === null) {
+  return (
+    <I18nCtx.Provider value={{ lang, setLang, t }}>
+      <SafeAreaProvider>
+        <SafeAreaView style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+          <ActivityIndicator />
+        </SafeAreaView>
+      </SafeAreaProvider>
+    </I18nCtx.Provider>
+  );
+}
+
+
+  return (
+    <I18nCtx.Provider value={{ lang, setLang, t }}>
+      <AuthCtx.Provider value={{ user }}>
+        <SafeAreaProvider>
+          <NavigationContainer>
+            <StatusBar barStyle={Platform.OS === "ios" ? "dark-content" : "light-content"} />
+            <Stack.Navigator
+              screenOptions={({ navigation }) => ({
+                headerLeft: () =>
+                  navigation?.canGoBack?.() ? <BackButton navigation={navigation} /> : undefined,
+              })}
+            >
+              {onboarded ? (
+                user ? (
+                  <>
+                    <Stack.Screen
+                      name="Tabs"
+                      component={TabsNavigator}
+                      options={({ navigation }) => ({
+                        headerShown: true,
+                        title: "YummyApp",
+                        headerRight: () => <HeaderAvatar navigation={navigation} />,
+                      })}
+                    />
+                    <Stack.Screen
+                      name="Recipe"
+                      component={RecipeScreen}
+                      options={({ route }: any) => ({ title: route.params?.title || "Recipe" })}
+                    />
+                    <Stack.Screen
+                      name="Onboarding"
+                      component={OnboardingScreen}
+                      options={{ title: "Preferences" }}
+                    />
+                    <Stack.Screen name="Languages" component={LanguagesScreen} options={{ title: "Languages" }} />
+                    <Stack.Screen
+                      name="Achievements"
+                      component={AchievementsScreen}
+                      options={{ title: t("achievements") }}
+                    />
+                    <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: "My profile" }} />
+                  </>
+                ) : (
+                  <Stack.Screen name="SignIn" component={SignInScreen} options={{ headerShown: false }} />
+                )
+              ) : (
+                <Stack.Screen name="Onboarding" options={{ headerShown: false }}>
+                  {() => (
+                    <OnboardingScreen
+                      onDone={async () => {
+                        setOnboarded(true);
+                        await AsyncStorage.setItem(STORAGE_KEYS2.ONBOARDED, "1");
+                      }}
+                    />
+                  )}
+                </Stack.Screen>
+              )}
+            </Stack.Navigator>
+          </NavigationContainer>
+        </SafeAreaProvider>
+      </AuthCtx.Provider>
+    </I18nCtx.Provider>
+  );
+}
+
+
+type AuthValue = { user: User | null };
+const AuthCtx = React.createContext<AuthValue>({ user: null });
+const useAuth = () => useContext(AuthCtx);
+
+
 
 // ----------------- Types -----------------
 type Meal = {
@@ -201,11 +316,11 @@ const KNOWN_AREAS: string[] = [
 // --- connectivity probe: read 1 doc to verify Firestore access ---
 async function pingFirestore(): Promise<void> {
   try {
-    const snap = await getDocs(query(collection(db, "recipes"), limit(1)));
-    if (snap.empty) {
+    const s = await getDocs(query(collection(db, "recipes"), limit(1)));
+    if (s.empty) {
       console.warn("[PING] Connected to Firestore, but 'recipes' is empty.");
     } else {
-      console.log("[PING] OK — sample doc id:", snap.docs[0].id);
+      console.log("[PING] OK — sample doc id:", s.docs[0].id);
     }
   } catch (e: any) {
     console.error("[PING] CANNOT READ FIRESTORE:", e?.code || e?.message || e);
@@ -214,10 +329,6 @@ async function pingFirestore(): Promise<void> {
 }
 
 // ----------------- Helpers -----------------
-async function getUserPrefs(): Promise<UserPrefs> {
-  const raw = await AsyncStorage.getItem(STORAGE_KEYS2.USER_PREFS);
-  return raw ? (JSON.parse(raw) as UserPrefs) : { likedAreas: [], likedCategories: [], diets: [], dislikes: [] };
-}
 
 function extractYouTubeId(url?: string | null) {
   try {
@@ -280,22 +391,56 @@ function normalizeFireDoc(d: any, id: string): Meal {
   };
 }
 
+// dislikes helpers
+function normalizeDislikes(arr?: string[]) {
+  return (arr || []).map((s) => s.toLowerCase().trim()).filter(Boolean);
+}
+function mealHasDisliked(meal: Meal, dislikesLC: string[]) {
+  if (!dislikesLC.length) return false;
+  const ingNames: string[] = [];
+
+  if (Array.isArray(meal.spoonIngredients) && meal.spoonIngredients.length) {
+    for (const it of meal.spoonIngredients) {
+      if (it?.ingredient) ingNames.push(String(it.ingredient).toLowerCase());
+    }
+  } else {
+    for (let i = 1; i <= 20; i++) {
+      const n = (meal as any)[`strIngredient${i}`];
+      if (n && String(n).trim()) ingNames.push(String(n).toLowerCase());
+    }
+  }
+
+  const titleLC = String(meal.strMeal || "").toLowerCase();
+
+  for (const bad of dislikesLC) {
+    if (ingNames.some((x) => x.includes(bad))) return true;
+    if (bad && titleLC.includes(bad)) return true;
+  }
+  return false;
+}
+
 // --------- FAST SEARCH: single indexed prefix on title_lower ---------
 async function searchRecipesPrefix(term: string): Promise<Meal[]> {
   const ql = term.trim().toLowerCase();
   if (!ql) return [];
-  const snap = await getDocs(
+  const s = await getDocs(
     query(collection(db, "recipes"), orderBy("title_lower"), startAt(ql), endAt(ql + "\uf8ff"), limit(24))
   );
-  return snap.docs.map((d) => normalizeFireDoc(d.data(), d.id));
+  return s.docs.map((d) => normalizeFireDoc(d.data(), d.id));
 }
 
 function withTimeout<T>(p: Promise<T>, ms = 8000): Promise<T> {
   return new Promise((resolve, reject) => {
     const id = setTimeout(() => reject(new Error("timeout")), ms);
     p.then(
-      (v) => { clearTimeout(id); resolve(v); },
-      (e) => { clearTimeout(id); reject(e); }
+      (v) => {
+        clearTimeout(id);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(id);
+        reject(e);
+      }
     );
   });
 }
@@ -311,11 +456,12 @@ async function getMealById(mealId: string): Promise<Meal | null> {
   }
 }
 
-// Recommend based on prefs, else first N (ordered)
+// Recommend based on prefs, else first N (ordered), then filter dislikes
 async function fetchRecommended(n: number = 12): Promise<Meal[]> {
   try {
     const prefsRaw = await AsyncStorage.getItem(STORAGE_KEYS2.USER_PREFS);
     const prefs: UserPrefs | null = prefsRaw ? JSON.parse(prefsRaw) : null;
+    const dislikesLC = normalizeDislikes(prefs?.dislikes);
 
     const ref = collection(db, "recipes");
     let qy;
@@ -326,13 +472,22 @@ async function fetchRecommended(n: number = 12): Promise<Meal[]> {
     } else {
       qy = query(ref, orderBy("title_lower"), limit(n));
     }
-    const snap = await getDocs(qy);
-    return snap.docs.map((d) => normalizeFireDoc(d.data(), d.id));
+    const s = await getDocs(qy);
+    const all = s.docs.map((d) => normalizeFireDoc(d.data(), d.id));
+    return all.filter((m) => !mealHasDisliked(m, dislikesLC));
   } catch (e) {
     console.warn("fetchRecommended error:", e);
     try {
-      const snap = await getDocs(query(collection(db, "recipes"), limit(n)));
-      return snap.docs.map((d) => normalizeFireDoc(d.data(), d.id));
+      const s = await getDocs(query(collection(db, "recipes"), limit(n)));
+      const all = s.docs.map((d) => normalizeFireDoc(d.data(), d.id));
+      // fallback dislikes check
+      let dislikesLC: string[] = [];
+      try {
+        const rawPrefs = await AsyncStorage.getItem(STORAGE_KEYS2.USER_PREFS);
+        const prefs: UserPrefs | null = rawPrefs ? JSON.parse(rawPrefs) : null;
+        dislikesLC = normalizeDislikes(prefs?.dislikes);
+      } catch {}
+      return all.filter((m) => !mealHasDisliked(m, dislikesLC));
     } catch {
       return [];
     }
@@ -383,6 +538,7 @@ function normalizeSteps(input?: string | string[] | null) {
     .filter(Boolean);
 }
 
+// ---------- Small UI helpers ----------
 function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
   return (
     <Pressable
@@ -404,19 +560,19 @@ function Chip({ label, selected, onPress }: { label: string; selected: boolean; 
   );
 }
 
-function Section({ title, children }: any) {
-  return (
-    <View style={{ marginBottom: 16 }}>
-      <Text style={{ fontSize: 18, fontWeight: "700", marginBottom: 8 }}>{title}</Text>
-      <View style={{ flexDirection: "row", flexWrap: "wrap" }}>{children}</View>
-    </View>
-  );
-}
-
-function OnboardingScreen({ onDone }: { onDone?: () => void }) {
-  const defaultPrefs: UserPrefs = { likedAreas: [], likedCategories: [], diets: [], dislikes: [] };
-  const [prefs, setPrefs] = useState<UserPrefs>(defaultPrefs);
+// ----------------- Onboarding (Wizard) -----------------
+function OnboardingScreen({ navigation, onDone }: { navigation?: any; onDone?: () => void }) {
+  const [prefs, setPrefs] = useState<UserPrefs>({
+    likedAreas: [],
+    likedCategories: [],
+    diets: [],
+    dislikes: [],
+  });
   const [dislikeInput, setDislikeInput] = useState("");
+  const [index, setIndex] = useState(0);
+
+  const { width } = useWindowDimensions();
+  const translateX = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     (async () => {
@@ -425,69 +581,213 @@ function OnboardingScreen({ onDone }: { onDone?: () => void }) {
     })();
   }, []);
 
-  const toggle = (key: keyof UserPrefs, value: string) => {
-    setPrefs((p) => {
-      const arr = new Set(p[key] as string[]);
-      arr.has(value) ? arr.delete(value) : arr.add(value);
-      return { ...p, [key]: Array.from(arr) };
-    });
-  };
-
-  const save = async () => {
-    await AsyncStorage.setItem(STORAGE_KEYS2.USER_PREFS, JSON.stringify(prefs));
-    if (onDone) onDone();
-  };
-
-  const AREAS = ["Greek","Italian","Mexican","Chinese","Indian","Japanese","Thai","French","Spanish","American","Middle Eastern","Turkish","Korean","Vietnamese"];
-  const CATEGORIES = ["Dessert","Seafood","Pasta","Beef","Chicken","Vegan","Vegetarian","Breakfast","Soup","Salad","Snack","Bread","Sauce"];
+  const AREAS = [
+    "Greek","Italian","Mexican","Chinese","Indian","Japanese","Thai",
+    "French","Spanish","American","Middle Eastern","Turkish","Korean","Vietnamese",
+  ];
+  const CATEGORIES = [
+    "Dessert","Seafood","Pasta","Beef","Chicken","Vegan",
+    "Vegetarian","Breakfast","Soup","Salad","Snack","Bread","Sauce",
+  ];
   const DIETS = ["High protein","Low carb","Vegetarian","Vegan","Gluten free","Dairy free"];
+
+  const steps = [
+    {
+      key: "areas",
+      title: "Favorite cuisines",
+      content: (
+        <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+          {AREAS.map((a) => (
+            <Chip
+              key={a}
+              label={a}
+              selected={prefs.likedAreas.includes(a)}
+              onPress={() =>
+                setPrefs((p) => {
+                  const s = new Set(p.likedAreas);
+                  s.has(a) ? s.delete(a) : s.add(a);
+                  return { ...p, likedAreas: Array.from(s) };
+                })
+              }
+            />
+          ))}
+        </View>
+      ),
+    },
+    {
+      key: "categories",
+      title: "Favorite categories",
+      content: (
+        <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+          {CATEGORIES.map((c) => (
+            <Chip
+              key={c}
+              label={c}
+              selected={prefs.likedCategories.includes(c)}
+              onPress={() =>
+                setPrefs((p) => {
+                  const s = new Set(p.likedCategories);
+                  s.has(c) ? s.delete(c) : s.add(c);
+                  return { ...p, likedCategories: Array.from(s) };
+                })
+              }
+            />
+          ))}
+        </View>
+      ),
+    },
+    {
+      key: "diets",
+      title: "Diets (optional)",
+      content: (
+        <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+          {DIETS.map((d) => (
+            <Chip
+              key={d}
+              label={d}
+              selected={prefs.diets.includes(d)}
+              onPress={() =>
+                setPrefs((p) => {
+                  const s = new Set(p.diets);
+                  s.has(d) ? s.delete(d) : s.add(d);
+                  return { ...p, diets: Array.from(s) };
+                })
+              }
+            />
+          ))}
+        </View>
+      ),
+    },
+    {
+      key: "dislikes",
+      title: "Things you dislike (optional)",
+      content: (
+        <>
+          <TextInput
+            placeholder="e.g. olives, cilantro"
+            value={dislikeInput}
+            onChangeText={setDislikeInput}
+            onBlur={() =>
+              setPrefs((p) => ({
+                ...p,
+                dislikes: dislikeInput
+                  .split(",")
+                  .map((s) => s.trim())
+                  .filter(Boolean),
+              }))
+            }
+            style={[styles.input, { marginTop: 6 }]}
+          />
+          {!!prefs.dislikes.length && (
+            <Text style={{ marginTop: 6, color: "#6b7280" }}>
+              Added: {prefs.dislikes.join(", ")}
+            </Text>
+          )}
+        </>
+      ),
+    },
+  ];
+
+  useEffect(() => {
+    translateX.setValue(-index * width);
+  }, [width, index, translateX]);
+
+  const animateTo = (next: number) => {
+    Animated.timing(translateX, {
+      toValue: -next * width,
+      duration: 250,
+      easing: Easing.out(Easing.ease),
+      useNativeDriver: true,
+    }).start(() => setIndex(next));
+  };
+
+  const goNext = () => animateTo(Math.min(index + 1, steps.length - 1));
+  const goBack = () => animateTo(Math.max(index - 1, 0));
+  const skipStep = () => goNext();
+
+  const goToHome = () => {
+    if (navigation?.reset) {
+      navigation.reset({ index: 0, routes: [{ name: "Tabs", params: { screen: "Search" } }] });
+    }
+    onDone && onDone();
+  };
+
+  const finish = async () => {
+    await AsyncStorage.setItem(STORAGE_KEYS2.USER_PREFS, JSON.stringify(prefs));
+    await AsyncStorage.setItem(STORAGE_KEYS2.ONBOARDED, "1");
+    goToHome();
+  };
+
+  const skipAll = async () => {
+    await AsyncStorage.setItem(STORAGE_KEYS2.ONBOARDED, "1");
+    goToHome();
+  };
 
   return (
     <SafeAreaView style={[styles.screen, { paddingTop: 16 }]}>
-      <Text style={{ fontSize: 26, fontWeight: "800", marginBottom: 6 }}>Tell us your taste</Text>
-      <Text style={{ color: "#6b7280", marginBottom: 16 }}>We’ll personalize your home feed.</Text>
-
-      <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
-        <Section title="Favorite cuisines">
-          {AREAS.map((a) => (
-            <Chip key={a} label={a} selected={prefs.likedAreas.includes(a)} onPress={() => toggle("likedAreas", a)} />
-          ))}
-        </Section>
-
-        <Section title="Favorite categories">
-          {CATEGORIES.map((c) => (
-            <Chip key={c} label={c} selected={prefs.likedCategories.includes(c)} onPress={() => toggle("likedCategories", c)} />
-          ))}
-        </Section>
-
-        <Section title="Diets (optional)">
-          {DIETS.map((d) => (
-            <Chip key={d} label={d} selected={prefs.diets.includes(d)} onPress={() => toggle("diets", d)} />
-          ))}
-        </Section>
-
-        <Text style={{ fontWeight: "700", marginBottom: 6 }}>Things you dislike (comma separated)</Text>
-        <TextInput
-          placeholder="e.g. olives, cilantro"
-          value={dislikeInput}
-          onChangeText={setDislikeInput}
-          onBlur={() =>
-            setPrefs((p) => ({ ...p, dislikes: dislikeInput.split(",").map((s) => s.trim()).filter(Boolean) }))
-          }
-          style={[styles.input, { marginBottom: 16 }]}
-        />
-
-        <TouchableOpacity onPress={save} style={[styles.btn, { alignSelf: "flex-start" }]}>
-          <Text style={styles.btnText}>Continue</Text>
-        </TouchableOpacity>
+      {/* Top bar with Back / Skip all */}
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        {index > 0 ? (
+          <TouchableOpacity
+            onPress={goBack}
+            style={[styles.btn, { height: 36, paddingHorizontal: 12, backgroundColor: "#6b7280" }]}
+          >
+            <Text style={styles.btnText}>Back</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 72 }} />
+        )}
 
         <TouchableOpacity
-          onPress={() => onDone && onDone()}
-          style={[styles.btn, { alignSelf: "flex-start", marginTop: 8, backgroundColor: "#6b7280" }]}
+          onPress={skipAll}
+          style={[styles.btn, { height: 36, paddingHorizontal: 12, backgroundColor: "#6b7280" }]}
         >
-          <Text style={styles.btnText}>Skip for now</Text>
+          <Text style={styles.btnText}>Skip all</Text>
         </TouchableOpacity>
-      </ScrollView>
+      </View>
+
+      <Text style={{ fontSize: 26, fontWeight: "800", marginBottom: 6 }}>Tell us your taste</Text>
+      <Text style={{ color: "#6b7280", marginBottom: 14 }}>We’ll personalize your home feed.</Text>
+
+      {/* Slider */}
+      <View style={{ overflow: "hidden", borderRadius: 16 }}>
+        <Animated.View
+          style={{
+            width: steps.length * width,
+            flexDirection: "row",
+            transform: [{ translateX }],
+          }}
+        >
+          {steps.map((step) => (
+            <View key={step.key} style={{ width, paddingRight: 12 }}>
+              <Text style={{ fontSize: 18, fontWeight: "700", marginBottom: 8 }}>{step.title}</Text>
+              <ScrollView style={{ maxHeight: 380 }} contentContainerStyle={{ paddingBottom: 16 }}>
+                {step.content}
+              </ScrollView>
+            </View>
+          ))}
+        </Animated.View>
+      </View>
+
+      {/* Bottom buttons */}
+      <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 12 }}>
+        <TouchableOpacity
+          onPress={skipStep}
+          style={[styles.btn, { flex: 1, backgroundColor: "#6b7280", marginRight: 8 }]}
+        >
+          <Text style={styles.btnText}>Skip</Text>
+        </TouchableOpacity>
+
+        {index < steps.length - 1 ? (
+          <TouchableOpacity onPress={goNext} style={[styles.btn, { flex: 1 }]}>
+            <Text style={styles.btnText}>Next</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity onPress={finish} style={[styles.btn, { flex: 1, backgroundColor: "#16a34a" }]}>
+            <Text style={styles.btnText}>Finish</Text>
+          </TouchableOpacity>
+        )}
+      </View>
     </SafeAreaView>
   );
 }
@@ -501,15 +801,25 @@ function SearchScreen({ navigation }: any) {
   const [recent, setRecent] = useState<string[]>([]);
   const [reco, setReco] = useState<Meal[]>([]);
   const [loading, setLoading] = useState(false);
+  const [dislikesLC, setDislikesLC] = useState<string[]>([]);
 
-  // on mount: ping firestore, load recent & recommendations
+  // load dislikes + recent + recommended
   useEffect(() => {
-    pingFirestore();
     (async () => {
-      const raw = await AsyncStorage.getItem(STORAGE_KEYS.RECENT);
-      setRecent(raw ? JSON.parse(raw) : []);
-      const r = await fetchRecommended(8);
-      setReco(r);
+      try {
+        const raw = await AsyncStorage.getItem(STORAGE_KEYS2.USER_PREFS);
+        const prefs: UserPrefs | null = raw ? JSON.parse(raw) : null;
+        setDislikesLC(normalizeDislikes(prefs?.dislikes));
+      } catch {}
+      try {
+        const rawRecent = await AsyncStorage.getItem(STORAGE_KEYS.RECENT);
+        setRecent(rawRecent ? JSON.parse(rawRecent) : []);
+      } catch {}
+      try {
+        const r = await fetchRecommended(12);
+        setReco(r);
+      } catch {}
+      pingFirestore();
     })();
   }, []);
 
@@ -522,24 +832,28 @@ function SearchScreen({ navigation }: any) {
     }
     const tmr = setTimeout(async () => {
       const rows = await searchRecipesPrefix(term);
-      setSuggestions(rows.slice(0, 8));
-    }, 300);
+      const filtered = rows.filter((m) => !mealHasDisliked(m, dislikesLC));
+      setSuggestions(filtered.slice(0, 8));
+    }, 250);
     return () => clearTimeout(tmr);
-  }, [q]);
+  }, [q, dislikesLC]);
 
   const clearRecent = async () => {
     setRecent([]);
-    await AsyncStorage.removeItem(STORAGE_KEYS.RECENT);
+    await AsyncStorage.setItem(STORAGE_KEYS.RECENT, JSON.stringify([]));
   };
 
   const onSearch = async (text: string) => {
     const term = text.trim();
-    if (!term) { setResults([]); return; }
-
+    if (!term) {
+      setResults([]);
+      return;
+    }
     setLoading(true);
     try {
       const rows = await withTimeout(searchRecipesPrefix(term), 8000);
-      setResults(rows);
+      const filtered = rows.filter((m) => !mealHasDisliked(m, dislikesLC));
+      setResults(filtered);
     } catch (e) {
       console.error("search error/timeout", e);
       Alert.alert("Network", "Search took too long or failed. Check Firestore/connection.");
@@ -562,13 +876,13 @@ function SearchScreen({ navigation }: any) {
         <TextInput
           value={q}
           onChangeText={setQ}
-          placeholder="Search recipes"
+          placeholder={t("placeholder")}
           style={[styles.input, { marginRight: 8 }]}
           returnKeyType="search"
           onSubmitEditing={() => onSearch(q)}
         />
         <TouchableOpacity onPress={() => onSearch(q)} style={styles.btn}>
-          <Text style={styles.btnText}>{locales.en.search}</Text>
+          <Text style={styles.btnText}>{t("search")}</Text>
         </TouchableOpacity>
       </View>
 
@@ -577,9 +891,7 @@ function SearchScreen({ navigation }: any) {
           {suggestions.map((s) => (
             <Pressable
               key={s.idMeal}
-              onPress={() =>
-                navigation.navigate("Recipe", { mealId: s.idMeal, title: s.strMeal, meal: s })
-              }
+              onPress={() => navigation.navigate("Recipe", { mealId: s.idMeal, title: s.strMeal, meal: s })}
               style={styles.suggestionRow}
             >
               <Image source={{ uri: s.strMealThumb || undefined }} style={styles.suggestionImg} />
@@ -711,7 +1023,9 @@ function RecipeScreen({ route }: any) {
         }
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [mealId, passedMeal]);
 
   useEffect(() => {
@@ -979,101 +1293,57 @@ function BackButton({ navigation }: any) {
   );
 }
 
+// --- ONLY Search & Top in the bottom tabs ---
 function TabsNavigator() {
   const t = useT();
   return (
     <Tabs.Navigator
+      initialRouteName="Search"
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarIcon: ({ color, size }) => {
-          let icon: any = "home";
-          if (route.name === "Search") icon = "search";
-          if (route.name === "Top") icon = "flame";
-          if (route.name === "Settings") icon = "settings";
-          return <Ionicons name={icon} size={size} color={color} />;
+          const icon = route.name === "Search" ? "search" : "flame-outline";
+          return <Ionicons name={icon as any} size={size} color={color} />;
         },
       })}
     >
       <Tabs.Screen name="Search" component={SearchScreen} options={{ title: t("search") }} />
       <Tabs.Screen name="Top" component={TopScreen} options={{ title: "Top" }} />
-      <Tabs.Screen name="Settings" component={SettingsScreen} options={{ title: t("settings") }} />
     </Tabs.Navigator>
   );
 }
 
-// ----------------- App Root -----------------
-export default function App() {
-  const [lang, setLang] = useState<LangKey>("en");
-  const [onboarded, setOnboarded] = useState<boolean | null>(null);
-  const t = (k: keyof typeof locales["en"]) => locales[lang][k];
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const saved = await AsyncStorage.getItem(STORAGE_KEYS.LANG);
-        if (saved && saved in locales) setLang(saved as LangKey);
-      } catch {}
-      try {
-        const onboardedVal = await AsyncStorage.getItem(STORAGE_KEYS2.ONBOARDED);
-        setOnboarded(onboardedVal === "1");
-      } catch {
-        setOnboarded(false);
-      }
-    })();
-  }, []);
+function HeaderAvatar({ navigation }: any) {
+  const { user } = useAuth();
+   if (!user) return null;
 
-  if (onboarded === null) {
-    return (
-      <I18nCtx.Provider value={{ lang, setLang, t }}>
-        <SafeAreaProvider>
-          <SafeAreaView style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-            <ActivityIndicator />
-          </SafeAreaView>
-        </SafeAreaProvider>
-      </I18nCtx.Provider>
-    );
-  }
-
+  const src = user.photoURL || undefined;
   return (
-    <I18nCtx.Provider value={{ lang, setLang, t }}>
-      <SafeAreaProvider>
-        <NavigationContainer>
-          <StatusBar barStyle={Platform.OS === "ios" ? "dark-content" : "light-content"} />
-          <Stack.Navigator
-            screenOptions={({ navigation }) => ({
-              headerLeft: () => (navigation?.canGoBack?.() ? <BackButton navigation={navigation} /> : undefined),
-            })}
-          >
-            {onboarded ? (
-              <>
-                <Stack.Screen name="Tabs" component={TabsNavigator} options={{ headerShown: false }} />
-                <Stack.Screen
-                  name="Recipe"
-                  component={RecipeScreen}
-                  options={({ route }: any) => ({ title: route.params?.title || "Recipe" })}
-                />
-                <Stack.Screen name="Onboarding" component={OnboardingScreen} options={{ title: "Preferences" }} />
-                <Stack.Screen name="Languages" component={LanguagesScreen} options={{ title: "Languages" }} />
-                <Stack.Screen name="Achievements" component={AchievementsScreen} options={{ title: t("achievements") }} />
-              </>
-            ) : (
-              <Stack.Screen name="Onboarding" options={{ headerShown: false }}>
-                {() => (
-                  <OnboardingScreen
-                    onDone={async () => {
-                      setOnboarded(true);
-                      await AsyncStorage.setItem(STORAGE_KEYS2.ONBOARDED, "1");
-                    }}
-                  />
-                )}
-              </Stack.Screen>
-            )}
-          </Stack.Navigator>
-        </NavigationContainer>
-      </SafeAreaProvider>
-    </I18nCtx.Provider>
+    <TouchableOpacity onPress={() => navigation.navigate("Profile")} style={{ marginRight: 12 }}>
+      <View
+        style={{
+          width: 32,
+          height: 32,
+          borderRadius: 16,
+          overflow: "hidden",
+          backgroundColor: "#ddd",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        {src ? (
+          <Image source={{ uri: src }} style={{ width: 32, height: 32 }} />
+        ) : (
+          <Text style={{ fontWeight: "700" }}>
+            {(user.displayName || user.email || "?").substring(0, 1).toUpperCase()}
+          </Text>
+        )}
+      </View>
+    </TouchableOpacity>
   );
 }
+
 
 // ----------------- Styles -----------------
 const styles = StyleSheet.create({

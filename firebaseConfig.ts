@@ -1,26 +1,27 @@
 // firebaseConfig.ts
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
-// (optional: analytics, but not needed for search)
-// import { getAnalytics } from "firebase/analytics";
+import { getAuth, GoogleAuthProvider } from "firebase/auth";
 
+// ⚠️ ΒΑΛΕ ΤΑ ΔΙΚΑ ΣΟΥ CREDENTIALS ΕΔΩ (ό,τι είχες ήδη)
 const firebaseConfig = {
   apiKey: "AIzaSyDaVsWvWgKdsJFBxw-r08-Bsr31rrtRHjI",
   authDomain: "yummyapp-db.firebaseapp.com",
-  projectId: "yummyapp-db",
-  storageBucket: "yummyapp-db.firebasestorage.app",
+  projectId: "yummyapp-db",          // το δικό σου projectId
+  storageBucket: "yummyapp-db.appspot.com",
   messagingSenderId: "342563474811",
   appId: "1:342563474811:web:32da88a4bed219c5fd41de",
-  measurementId: "G-MF1DYDGBLN"
+  // measurementId: "G-XXXX", // προαιρετικό
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// ✅ Initialize exactly once (αποφεύγει duplicates)
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
-// 👇 export Firestore (this is what you use everywhere else)
 export const db = getFirestore(app);
 
-// Optional: log projectId when the app starts
-console.log("[Firebase] Connected project:", firebaseConfig.projectId);
+// Auth + Google provider
+export const auth = getAuth(app);
+export const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: "select_account" });
 
-
+export default app;

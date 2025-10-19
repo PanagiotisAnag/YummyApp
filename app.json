@@ -2,6 +2,7 @@
   "expo": {
     "name": "yummyApp",
     "slug": "yummyApp",
+    "scheme": "yummyapp",
     "icon": "./assets/icon.png",
     "splash": {
       "image": "./assets/splash.png",
@@ -12,9 +13,14 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.yourname.yummyapp",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
+      "package": "com.yourname.yummyapp",
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#ffffff"
@@ -25,6 +31,11 @@
     },
     "plugins": [
       "expo-font"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "4573ecb8-c759-4139-a5d7-8f259f0cd68a"
+      }
+    }
   }
 }

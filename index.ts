@@ -1,8 +1,25 @@
-import { registerRootComponent } from 'expo';
+// index.ts
+import { registerRootComponent } from "expo";
+import * as Notifications from "expo-notifications";
+import { Platform } from "react-native";
+import App from "./App";
 
-import App from './App';
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
 
-// registerRootComponent calls AppRegistry.registerComponent('main', () => App);
-// It also ensures that whether you load the app in Expo Go or in a native build,
-// the environment is set up appropriately
+
+if (Platform.OS === "android") {
+  Notifications.setNotificationChannelAsync("default", {
+    name: "Default",
+    importance: Notifications.AndroidImportance.DEFAULT,
+  }).catch(() => {});
+}
+
 registerRootComponent(App);

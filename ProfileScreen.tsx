@@ -9,7 +9,7 @@ import {
   StyleSheet,
   Alert,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { signOut } from "firebase/auth";
@@ -33,14 +33,14 @@ function Row({
   label,
   onPress,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: React.ReactNode;
   label: string;
   onPress: () => void;
 }) {
   return (
     <TouchableOpacity onPress={onPress} style={styles.row}>
       <View style={styles.rowLeft}>
-        <Ionicons name={icon} size={22} color="#111827" />
+        {icon}
         <Text style={styles.rowText}>{label}</Text>
       </View>
       <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
@@ -76,7 +76,10 @@ export default function ProfileScreen() {
         <View style={{ flexDirection: "row", alignItems: "center" }}>
           <View style={styles.avatar}>
             {photo ? (
-              <Image source={{ uri: photo }} style={{ width: 64, height: 64 }} />
+              <Image
+                source={{ uri: photo }}
+                style={{ width: 64, height: 64 }}
+              />
             ) : (
               <Text style={{ fontWeight: "800", fontSize: 22 }}>
                 {title.substring(0, 1).toUpperCase()}
@@ -97,17 +100,45 @@ export default function ProfileScreen() {
         <Text style={styles.boxTitle}>Settings</Text>
 
         <Row
-          icon="language"
+          icon={<Ionicons name="globe-outline" size={24} color="#111827" />}
           label="Languages"
           onPress={() => navigation.navigate("Languages")}
         />
         <Row
-          icon="restaurant"
+          icon={
+            <View style={{ width: 24, height: 24 }}>
+              <MaterialCommunityIcons
+                name="chili-mild-outline"
+                size={24}
+                color="#111827"
+              />
+              <MaterialCommunityIcons
+                name="pencil-outline"
+                size={12}
+                color="#111827"
+                style={{ position: "absolute", right: -2, bottom: -2 }}
+              />
+            </View>
+          }
           label="Edit tastes"
           onPress={() => navigation.navigate("Onboarding")}
         />
         <Row
-          icon="trophy"
+          icon={
+            <View style={{ width: 24, height: 24 }}>
+              <MaterialCommunityIcons
+                name="medal-outline"
+                size={24}
+                color="#111827"
+              />
+              <MaterialCommunityIcons
+                name="star-four-points-outline"
+                size={10}
+                color="#111827"
+                style={{ position: "absolute", top: 6, left: 6 }}
+              />
+            </View>
+          }
           label="Achievements"
           onPress={() => navigation.navigate("Achievements")}
         />
@@ -115,7 +146,15 @@ export default function ProfileScreen() {
         <View style={styles.separator} />
 
         <TouchableOpacity onPress={handleSignOut} style={styles.signOutBtn}>
-          <Ionicons name="log-out-outline" size={20} color="#fff" />
+          <View style={{ width: 24, height: 24, marginRight: 6 }}>
+            <MaterialCommunityIcons name="door-open" size={24} color="#fff" />
+            <Ionicons
+              name="arrow-forward-outline"
+              size={14}
+              color="#fff"
+              style={{ position: "absolute", right: -4, top: 6 }}
+            />
+          </View>
           <Text style={styles.signOutText}>Sign out</Text>
         </TouchableOpacity>
       </View>
@@ -153,7 +192,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   rowLeft: { flexDirection: "row", alignItems: "center" },
-  rowText: { marginLeft: 10, fontSize: 16, fontWeight: "600", color: "#111827" },
+  rowText: {
+    marginLeft: 10,
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#111827",
+  },
   separator: {
     height: 1,
     backgroundColor: "#eee",
@@ -166,7 +210,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
-    gap: 8,
   },
-  signOutText: { color: "white", fontWeight: "700", marginLeft: 8 },
+  signOutText: { color: "white", fontWeight: "700", marginLeft: 6 },
 });
